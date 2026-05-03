@@ -1,0 +1,258 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 用户与认证
+// ============================================================
+
+model User {
+  id             String    @id @default(cuid())
+  phone          String?   @unique
+  wechatOpenid   String?   @unique @map("wechat_openid")
+  wechatUnionid  String?   @map("wechat_unionid")
+  nickname       String    @default("蚕友")
+  avatarUrl      String?   @map("avatar_url")
+  ageMode        String    @default("standard") // junior | standard
+  isChildMode    Boolean   @default(false) @map("is_child_mode")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  projects       Project[]
+  taskLogs       TaskLog[]
+  subscriptions  Subscription[]
+
+  @@map("users")
+}
+
+// ============================================================
+// 养蚕项目
+// ============================================================
+
+model Project {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  name                  String    @default("我的蚕宝宝")
+  silkwormCount         Int       @default(5) @map("silkworm_count")
+  startDate             DateTime  @map("start_date")
+  currentStageId        String    @default("egg") @map("current_stage_id")
+  currentStageStartedAt DateTime  @default(now()) @map("current_stage_started_at")
+  isAutoStage           Boolean   @default(true) @map("is_auto_stage")
+  status                String    @default("active") // active | completed | archived
+  settings              Json      @default("{\"morningReminderTime\":\"08:00\",\"eveningReminderTime\":\"19:00\",\"enablePush\":true}")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stageLogs  StageLog[]
+  records    Record[]
+  taskLogs   TaskLog[]
+  diaryBooks DiaryBook[]
+  badges     Badge[]
+  reminders  ReminderRule[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+// ============================================================
+// 阶段日志
+// ============================================================
+
+model StageLog {
+  id              String    @id @default(cuid())
+  projectId       String    @map("project_id")
+  stageId         String    @map("stage_id")
+  startedAt       DateTime  @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  isManualAdjust  Boolean   @default(false) @map("is_manual_adjust")
+  note            String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, startedAt])
+  @@map("stage_logs")
+}
+
+// ============================================================
+// 记录
+// ============================================================
+
+model Record {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  date           DateTime @db.Date
+  stageId        String   @map("stage_id")
+  dayInStage     Int      @map("day_in_stage")
+  authorType     String   @default("parent") @map("author_type") // parent | child
+  authorName     String?  @map("author_name")
+  textContent    String?  @map("text_content") @db.Text
+  tags           String[] @default([])
+  weather        String?
+  temperature    Float?
+  mood           String?  // happy | neutral | sad
+  linkedTaskIds  String[] @default([]) @map("linked_task_ids")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mediaItems MediaItem[]
+
+  @@index([projectId, date])
+  @@map("records")
+}
+
+// ============================================================
+// 媒体项
+// ============================================================
+
+model MediaItem {
+  id           String   @id @default(cuid())
+  recordId     String   @map("record_id")
+  type         String   // image | video
+  url          String
+  thumbnailUrl String?  @map("thumbnail_url")
+  duration     Float?   // 视频时长(秒)
+  fileSize     Int?     @map("file_size")
+  width        Int?
+  height       Int?
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  record Record @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, sortOrder])
+  @@map("media_items")
+}
+
+// ============================================================
+// 任务模板（预置数据）
+// ============================================================
+
+model TaskTemplate {
+  id                   String   @id @default(cuid())
+  stageId              String   @map("stage_id")
+  title                String
+  titleJunior          String   @map("title_junior")
+  description          String   @db.Text
+  descriptionJunior    String   @map("description_junior") @db.Text
+  taskType             String   @map("task_type") // feeding | cleaning | observation | measurement | milestone | preparation
+  suggestedTime        String   @map("suggested_time") // morning | afternoon | evening | anytime
+  requiredRecordType   String   @default("none") @map("required_record_type") // photo | video | text | measurement | none
+  isDaily              Boolean  @default(true) @map("is_daily")
+  dayOffset            Int?     @map("day_offset")
+  priority             Int      @default(2)
+  isWarning            Boolean  @default(false) @map("is_warning")
+  sortOrder            Int      @default(0) @map("sort_order")
+
+  taskLogs TaskLog[]
+
+  @@index([stageId])
+  @@map("task_templates")
+}
+
+// ============================================================
+// 任务完成日志
+// ============================================================
+
+model TaskLog {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  taskTemplateId String?  @map("task_template_id")
+  templateId     String?  @map("template_id") // 兼容前端模板ID
+  date           DateTime @db.Date
+  completedAt    DateTime @default(now()) @map("completed_at")
+  completedBy    String   @default("parent") @map("completed_by")
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskTemplate TaskTemplate? @relation(fields: [taskTemplateId], references: [id])
+  user         User          @relation(fields: [completedBy], references: [id])
+
+  @@index([projectId, date])
+  @@map("task_logs")
+}
+
+// ============================================================
+// AI日记本
+// ============================================================
+
+model DiaryBook {
+  id               String   @id @default(cuid())
+  projectId        String   @map("project_id")
+  status           String   @default("generating") // generating | completed | failed
+  contentJson      Json?    @map("content_json")
+  coverImageUrl    String?  @map("cover_image_url")
+  totalWords       Int?     @map("total_words")
+  generatedAt      DateTime? @map("generated_at")
+  generationConfig Json?    @map("generation_config")
+  regenerateCount  Int      @default(0) @map("regenerate_count")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("diary_books")
+}
+
+// ============================================================
+// 提醒规则
+// ============================================================
+
+model ReminderRule {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  type      String   // morning_feed | noon_observe | evening_check | stage_change | abnormal
+  time      String?  // HH:mm
+  isEnabled Boolean  @default(true) @map("is_enabled")
+  platform  String   @default("app") // app | miniprogram
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("reminder_rules")
+}
+
+// ============================================================
+// 徽章
+// ============================================================
+
+model Badge {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  type      String
+  earnedAt  DateTime @default(now()) @map("earned_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("badges")
+}
+
+// ============================================================
+// 订阅
+// ============================================================
+
+model Subscription {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  plan           String    @default("free") // free | mulberry | silkworm | school
+  startedAt      DateTime  @map("started_at")
+  expiresAt      DateTime? @map("expires_at")
+  paymentMethod  String?   @map("payment_method")
+  transactionId  String?   @map("transaction_id") @unique
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
+}
