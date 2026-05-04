@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma.service'
 
 @Injectable()
@@ -6,24 +6,24 @@ export class ProjectService {
   constructor(private prisma: PrismaService) {}
 
   async create(userId: string, data: {
-    name: string
-    silkwormCount: number
+    name?: string
+    silkwormCount?: number
     startDate: string
-    ageMode: string
+    ageMode?: string
   }) {
     return this.prisma.project.create({
       data: {
         userId,
-        name: data.name,
-        silkwormCount: data.silkwormCount,
+        name: data.name || '我的蚕宝宝',
+        silkwormCount: data.silkwormCount ?? 5,
         startDate: new Date(data.startDate),
         currentStageId: 'egg',
         currentStageStartedAt: new Date(data.startDate),
-        settings: {
+        settings: JSON.stringify({
           morningReminderTime: '08:00',
           eveningReminderTime: '19:00',
           enablePush: true,
-        },
+        }),
       },
     })
   }
@@ -41,8 +41,18 @@ export class ProjectService {
     })
   }
 
+  async verifyOwnership(projectId: string, userId: string) {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
+    if (!project) {
+      throw new NotFoundException('项目不存在')
+    }
+    if (project.userId !== userId) {
+      throw new ForbiddenException('无权访问此项目')
+    }
+    return project
+  }
+
   async adjustStage(projectId: string, newStageId: string) {
-    // 记录阶段日志
     await this.prisma.stageLog.create({
       data: {
         projectId,

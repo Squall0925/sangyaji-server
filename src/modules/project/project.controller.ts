@@ -1,9 +1,8 @@
-import { Controller, Post, Get, Patch, Body, Param, UseGuards } from '@nestjs/common'
+import { Controller, Post, Get, Patch, Body, Param, UseGuards, ForbiddenException } from '@nestjs/common'
 import { ProjectService } from './project.service'
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard'
 import { CurrentUserId } from '../../common/decorators/current-user.decorator'
+import { CreateProjectDto } from './dto/create-project.dto'
 
-@UseGuards(JwtAuthGuard)
 @Controller('projects')
 export class ProjectController {
   constructor(private projectService: ProjectService) {}
@@ -11,9 +10,9 @@ export class ProjectController {
   @Post()
   async create(
     @CurrentUserId() userId: string,
-    @Body() body: { name: string; silkwormCount: number; startDate: string; ageMode: string },
+    @Body() dto: CreateProjectDto,
   ) {
-    return this.projectService.create(userId, body)
+    return this.projectService.create(userId, dto)
   }
 
   @Get()
@@ -27,12 +26,21 @@ export class ProjectController {
   }
 
   @Patch(':id/adjust-stage')
-  async adjustStage(@Param('id') id: string, @Body('stageId') stageId: string) {
+  async adjustStage(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+    @Body('stageId') stageId: string,
+  ) {
+    await this.projectService.verifyOwnership(id, userId)
     return this.projectService.adjustStage(id, stageId)
   }
 
   @Patch(':id/complete')
-  async complete(@Param('id') id: string) {
+  async complete(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+  ) {
+    await this.projectService.verifyOwnership(id, userId)
     return this.projectService.complete(id)
   }
 }

@@ -28,10 +28,10 @@ export class DiaryService {
       data: {
         projectId,
         status: 'generating',
-        generationConfig: {
-          ageMode: (project.settings as any)?.ageMode ?? 'standard',
+        generationConfig: JSON.stringify({
+          ageMode: JSON.parse(project.settings as string || '{}').ageMode ?? 'standard',
           model: 'qwen-max',
-        },
+        }),
       },
     })
 

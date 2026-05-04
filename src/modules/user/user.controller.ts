@@ -1,25 +1,39 @@
-import { Controller, Get, Patch, Body } from '@nestjs/common'
+import { Controller, Get, Patch, Body, NotFoundException } from '@nestjs/common'
 import { UserService } from './user.service'
+import { CurrentUserId } from '../../common/decorators/current-user.decorator'
+import { UpdateProfileDto } from './dto/update-profile.dto'
 
 @Controller('user')
 export class UserController {
   constructor(private userService: UserService) {}
 
   @Get('profile')
-  async getProfile() {
-    // TODO: 从JWT中获取userId
-    return { message: '获取用户信息' }
+  async getProfile(@CurrentUserId() userId: string) {
+    const user = await this.userService.findById(userId)
+    if (!user) {
+      throw new NotFoundException('用户不存在')
+    }
+    return user
   }
 
   @Patch('profile')
-  async updateProfile(@Body() body: { nickname?: string; avatarUrl?: string; ageMode?: string }) {
-    // TODO: 从JWT中获取userId
-    return { message: '更新用户信息' }
+  async updateProfile(
+    @CurrentUserId() userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    const user = await this.userService.updateProfile(userId, dto)
+    if (!user) {
+      throw new NotFoundException('用户不存在')
+    }
+    return user
   }
 
   @Patch('toggle-child-mode')
-  async toggleChildMode() {
-    // TODO: 从JWT中获取userId
-    return { message: '切换儿童模式' }
+  async toggleChildMode(@CurrentUserId() userId: string) {
+    const user = await this.userService.toggleChildMode(userId)
+    if (!user) {
+      throw new NotFoundException('用户不存在')
+    }
+    return user
   }
 }
