@@ -28,10 +28,10 @@ export class DiaryService {
       data: {
         projectId,
         status: 'generating',
-        generationConfig: JSON.stringify({
-          ageMode: JSON.parse(project.settings as string || '{}').ageMode ?? 'standard',
+        generationConfig: {
+          ageMode: (project.settings as any)?.ageMode ?? 'standard',
           model: 'qwen-max',
-        }),
+        },
       },
     })
 
@@ -95,7 +95,7 @@ export class DiaryService {
     // 4. 调用AI API
     // 5. 解析返回结果
 
-    const ageMode = (project.settings as any)?.ageMode ?? 'standard'
+    const ageMode = JSON.parse(project.settings as string || '{}').ageMode ?? 'standard'
     const childAge = ageMode === 'junior' ? '5' : '10'
 
     const prompt = `你是一个儿童文学作家和昆虫学爱好者，正在帮助一个${childAge}岁的孩子写养蚕日记。

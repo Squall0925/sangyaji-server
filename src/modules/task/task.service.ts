@@ -27,11 +27,22 @@ export class TaskService {
       data: {
         projectId: data.projectId,
         templateId: data.templateId,
-        // 同时写入 taskTemplateId FK 字段
         taskTemplateId: data.templateId,
         date: new Date(data.date),
         completedBy: data.completedBy,
       },
+    })
+  }
+
+  async getTaskCompletions(projectId: string, date: string) {
+    return this.prisma.taskLog.findMany({
+      where: {
+        projectId,
+        date: new Date(date),
+      },
+    })
+  }
+}
     })
   }
 
